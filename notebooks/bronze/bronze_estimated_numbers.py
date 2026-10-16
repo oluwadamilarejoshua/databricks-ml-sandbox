@@ -53,14 +53,16 @@ df_raw.printSchema()
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 2 — Add lineage columns
-# MAGIC `F.input_file_name()` is the DataFrame-API equivalent of the `_metadata.file_path`
-# MAGIC you used in SQL — same information, different syntax.
+# MAGIC `_metadata.file_path` is a hidden column Unity Catalog attaches to every file-based
+# MAGIC read — the DataFrame-API way to reach it is `F.col("_metadata.file_path")`, not the
+# MAGIC older `input_file_name()` function, which UC blocks because it bypasses governance
+# MAGIC and lineage tracking. This is the same field your original SQL already used correctly.
 
 # COMMAND ----------
 
 df_bronze = (
     df_raw
-    .withColumn("_source_file", F.input_file_name())
+    .withColumn("_source_file", F.col("_metadata.file_path"))
     .withColumn("_ingested_at", F.current_timestamp())
     .withColumn("_pipeline_version", F.lit(PIPELINE_VERSION))
     .withColumn("_run_id", F.lit(RUN_ID))

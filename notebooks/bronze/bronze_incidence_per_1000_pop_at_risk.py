@@ -42,7 +42,7 @@ df_raw.printSchema()
 
 df_bronze = (
     df_raw
-    .withColumn("_source_file", F.input_file_name())
+    .withColumn("_source_file", F.col("_metadata.file_path"))
     .withColumn("_ingested_at", F.current_timestamp())
     .withColumn("_pipeline_version", F.lit(PIPELINE_VERSION))
     .withColumn("_run_id", F.lit(RUN_ID))
