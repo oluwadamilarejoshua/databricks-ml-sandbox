@@ -52,12 +52,12 @@ estimated_clean = (
     estimated
     .select(
         F.trim(F.col("Country")).alias("country"),
-        F.trim(F.col("Year")).cast("int").alias("year"),
+        F.col("Year").cast("int").alias("year"),  # numeric already — don't trim() it, trim() stringifies it first
         F.trim(F.col("WHO Region")).alias("who_region"),
-        F.col("`No. of cases_median`").cast("double").alias("estimated_cases_median"),
-        F.coalesce(F.col("`No. of cases_min`").cast("double"), F.lit(0.0)).alias("estimated_cases_min"),
-        F.coalesce(F.col("`No. of cases_max`").cast("double"), F.lit(0.0)).alias("estimated_cases_max"),
-        F.col("`No. of deaths_median`").cast("double").alias("estimated_deaths_median"),
+        F.expr("try_cast(`No. of cases_median` as double)").alias("estimated_cases_median"),
+        F.coalesce(F.expr("try_cast(`No. of cases_min` as double)"), F.lit(0.0)).alias("estimated_cases_min"),
+        F.coalesce(F.expr("try_cast(`No. of cases_max` as double)"), F.lit(0.0)).alias("estimated_cases_max"),
+        F.expr("try_cast(`No. of deaths_median` as double)").alias("estimated_deaths_median"),
     )
 )
 
@@ -75,9 +75,9 @@ incidence_clean = (
     incidence
     .select(
         F.trim(F.col("Country")).alias("country"),
-        F.trim(F.col("Year")).cast("int").alias("year"),
+        F.col("Year").cast("int").alias("year"),
         F.trim(F.col("WHO Region")).alias("who_region"),
-        F.col("`No. of cases`").cast("double").alias("incidence_per_1000"),
+        F.expr("try_cast(`No. of cases` as double)").alias("incidence_per_1000"),
     )
 )
 
@@ -93,10 +93,10 @@ reported_clean = (
     reported
     .select(
         F.trim(F.col("Country")).alias("country"),
-        F.trim(F.col("Year")).cast("int").alias("year"),
+        F.col("Year").cast("int").alias("year"),
         F.trim(F.col("WHO Region")).alias("who_region"),
-        F.col("`No. of cases`").cast("double").alias("reported_cases"),
-        F.col("`No. of deaths`").cast("double").alias("reported_deaths"),
+        F.expr("try_cast(`No. of cases` as double)").alias("reported_cases"),
+        F.expr("try_cast(`No. of deaths` as double)").alias("reported_deaths"),
     )
 )
 
