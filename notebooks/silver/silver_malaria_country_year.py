@@ -12,7 +12,6 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
-from datetime import datetime, timezone
 
 dbutils.widgets.text("catalog", "dummyhealthdata")
 CATALOG = dbutils.widgets.get("catalog")
@@ -31,7 +30,7 @@ print(f"Reading from: {CATALOG}.{BRONZE_SCHEMA}")
 
 estimated = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_estimated_numbers")
 incidence = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_incidence_per_1000_pop_at_risk")
-reported  = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_reported_numbers")
+reported = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_reported_numbers")
 
 print(f"estimated: {estimated.count():,} rows")
 print(f"incidence: {incidence.count():,} rows")
