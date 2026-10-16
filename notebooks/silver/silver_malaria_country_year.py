@@ -1,0 +1,168 @@
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # Silver — Malaria Country-Year
+# MAGIC
+# MAGIC **Pipeline:** `silver_malaria_country_year`
+# MAGIC **Sources:** `bronze_estimated_numbers`, `bronze_incidence_per_1000_pop_at_risk`, `bronze_reported_numbers`
+# MAGIC **Output:** `silver_data.silver_malaria_country_year` — one row per (country, year)
+# MAGIC **Grain note:** this dataset is annual and country-level, not weekly/ward-level like the
+# MAGIC real eHA pipeline. We use Country where the real pipeline uses LGA, and Year where it
+# MAGIC uses epi-week. Same concepts, coarser grain.
+
+# COMMAND ----------
+
+from pyspark.sql import functions as F
+from datetime import datetime, timezone
+
+dbutils.widgets.text("catalog", "dummyhealthdata")
+CATALOG = dbutils.widgets.get("catalog")
+
+BRONZE_SCHEMA = "bronze_data"
+SILVER_SCHEMA = "silver_data"
+PIPELINE_VERSION = "1.0.0"
+
+print(f"Catalog: {CATALOG}")
+print(f"Reading from: {CATALOG}.{BRONZE_SCHEMA}")
+
+# COMMAND ----------
+# MAGIC %md ### Cell 1 — Read the three Bronze tables
+
+# COMMAND ----------
+
+estimated = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_estimated_numbers")
+incidence = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_incidence_per_1000_pop_at_risk")
+reported  = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.bronze_reported_numbers")
+
+print(f"estimated: {estimated.count():,} rows")
+print(f"incidence: {incidence.count():,} rows")
+print(f"reported:  {reported.count():,} rows")
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### Cell 2 — Clean `estimated`
+# MAGIC The raw `No. of cases` / `No. of deaths` columns are compound strings like
+# MAGIC `630308[495000-801000]` — not usable as numbers. The file already gives us the
+# MAGIC parsed-out values in `_median` / `_min` / `_max`, so we drop the messy originals
+# MAGIC instead of parsing them. Where a country had 0 cases, `_min`/`_max` are blank —
+# MAGIC that's a real 0, not a missing measurement, so we fill it with 0 rather than drop the row.
+
+# COMMAND ----------
+
+estimated_clean = (
+    estimated
+    .select(
+        F.trim(F.col("Country")).alias("country"),
+        F.trim(F.col("Year")).cast("int").alias("year"),
+        F.trim(F.col("WHO Region")).alias("who_region"),
+        F.col("`No. of cases_median`").cast("double").alias("estimated_cases_median"),
+        F.coalesce(F.col("`No. of cases_min`").cast("double"), F.lit(0.0)).alias("estimated_cases_min"),
+        F.coalesce(F.col("`No. of cases_max`").cast("double"), F.lit(0.0)).alias("estimated_cases_max"),
+        F.col("`No. of deaths_median`").cast("double").alias("estimated_deaths_median"),
+    )
+)
+
+print(f"estimated_clean: {estimated_clean.count():,} rows")
+estimated_clean.display()
+
+# COMMAND ----------
+# MAGIC %md ### Cell 3 — Clean `incidence`
+# MAGIC Despite the column name, `No. of cases` in this file is actually the incidence rate
+# MAGIC per 1,000 population at risk — a continuous number. This becomes our regression target.
+
+# COMMAND ----------
+
+incidence_clean = (
+    incidence
+    .select(
+        F.trim(F.col("Country")).alias("country"),
+        F.trim(F.col("Year")).cast("int").alias("year"),
+        F.trim(F.col("WHO Region")).alias("who_region"),
+        F.col("`No. of cases`").cast("double").alias("incidence_per_1000"),
+    )
+)
+
+print(f"incidence_clean: {incidence_clean.count():,} rows")
+incidence_clean.display()
+
+# COMMAND ----------
+# MAGIC %md ### Cell 4 — Clean `reported`
+
+# COMMAND ----------
+
+reported_clean = (
+    reported
+    .select(
+        F.trim(F.col("Country")).alias("country"),
+        F.trim(F.col("Year")).cast("int").alias("year"),
+        F.trim(F.col("WHO Region")).alias("who_region"),
+        F.col("`No. of cases`").cast("double").alias("reported_cases"),
+        F.col("`No. of deaths`").cast("double").alias("reported_deaths"),
+    )
+)
+
+print(f"reported_clean: {reported_clean.count():,} rows")
+reported_clean.display()
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### Cell 5 — Join on (country, year)
+# MAGIC `incidence` is our target table, so it drives the join — every row we can score
+# MAGIC against must have an incidence value. `estimated` and `reported` are joined in as
+# MAGIC extra features; a country-year missing from either becomes a null feature, not a
+# MAGIC dropped row. We print counts at each step so a silent row-loss would be visible.
+
+# COMMAND ----------
+
+join_keys = ["country", "year"]
+
+silver_df = (
+    incidence_clean
+    .join(estimated_clean.drop("who_region"), on=join_keys, how="left")
+    .join(reported_clean.drop("who_region"), on=join_keys, how="left")
+)
+
+print(f"incidence_clean rows:  {incidence_clean.count():,}")
+print(f"after join (should match incidence_clean): {silver_df.count():,}")
+
+missing_estimated = silver_df.filter(F.col("estimated_cases_median").isNull()).count()
+missing_reported = silver_df.filter(F.col("reported_cases").isNull()).count()
+print(f"rows missing estimated features: {missing_estimated:,}")
+print(f"rows missing reported features:  {missing_reported:,}")
+
+# COMMAND ----------
+# MAGIC %md ### Cell 6 — Add lineage columns and write
+
+# COMMAND ----------
+
+silver_final = (
+    silver_df
+    .withColumn("_produced_at", F.current_timestamp())
+    .withColumn("_pipeline_version", F.lit(PIPELINE_VERSION))
+)
+
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SILVER_SCHEMA}")
+
+target_table = f"{CATALOG}.{SILVER_SCHEMA}.silver_malaria_country_year"
+
+# This is a full rebuild from Bronze every run, not an incremental append — so it
+# overwrites. (The real pipeline hit exactly this bug the other way: a full-snapshot
+# source that was wrongly set to append, silently duplicating history.)
+(
+    silver_final.write
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(target_table)
+)
+
+print(f"Wrote {silver_final.count():,} rows to {target_table}")
+
+# COMMAND ----------
+# MAGIC %md ### Cell 7 — Sanity check
+
+# COMMAND ----------
+
+check = spark.table(target_table)
+print(f"Row count: {check.count():,}")
+print(f"Year range: {check.agg(F.min('year'), F.max('year')).first()}")
+print(f"Distinct countries: {check.select('country').distinct().count()}")
+check.orderBy(F.col("incidence_per_1000").desc()).limit(10).display()
