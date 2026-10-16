@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI — Sandbox pipeline
+# Runs on every pull request. Lint + a syntax check on every notebook/script.
+# Mirrors the pattern the real eha-ghi-pipelines repo uses (ci-ncdc.yml,
+# ci-malaria.yml) — same idea, smaller, since this repo has no tests yet.
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-check:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint (flake8)
+        run: flake8 .   # settings (incl. spark/dbutils as known names) come from setup.cfg
+
+      - name: Syntax-check every notebook/script
+        run: |
+          find . -name "*.py" -not -path "./.git/*" -print0 | xargs -0 -n1 python -m py_compile
