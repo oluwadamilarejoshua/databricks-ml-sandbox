@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Bronze — Estimated Numbers
 # MAGIC
@@ -35,6 +39,7 @@ print(f"Target: {TARGET_TABLE}")
 print(f"Run id: {RUN_ID}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 1 — Read the raw CSV
 
 # COMMAND ----------
@@ -51,6 +56,7 @@ print(f"Raw rows: {df_raw.count():,}")
 df_raw.printSchema()
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 2 — Add lineage columns
 # MAGIC `_metadata.file_path` is a hidden column Unity Catalog attaches to every file-based
@@ -71,6 +77,7 @@ df_bronze = (
 df_bronze.display()
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 3 — Write to Bronze (overwrite — see note above)
 
 # COMMAND ----------
@@ -88,6 +95,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{BRONZE_SCHEMA}")
 print(f"Wrote {df_bronze.count():,} rows to {TARGET_TABLE}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 4 — Sanity check
 
 # COMMAND ----------
