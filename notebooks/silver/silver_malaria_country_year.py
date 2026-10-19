@@ -40,12 +40,16 @@ print(f"reported:  {reported.count():,} rows")
 # MAGIC %md
 # MAGIC ### Cell 2 — Clean `estimated`
 # MAGIC The raw `No. of cases` / `No. of deaths` columns are compound strings like
-# MAGIC `630308[495000-801000]` — not usable as numbers. The file already gives us the
-# MAGIC parsed-out values in `_median` / `_min` / `_max`, so we drop the messy originals
-# MAGIC instead of parsing them. Where a country had 0 cases, `_min`/`_max` are blank —
-# MAGIC that's a real 0, not a missing measurement, so we fill it with 0 rather than drop the row.
+# MAGIC `630308[495000-801000]` — the point estimate, followed by its `[min-max]` range.
+# MAGIC Every value is either a bare integer (no range to report, e.g. `0`) or exactly
+# MAGIC that shape — checked against the real file, no other format exists. We parse the
+# MAGIC leading number out directly with a regex rather than substituting the file's
+# MAGIC separate `_median` column, so the lineage is "parsed from the named column," not
+# MAGIC "borrowed from a different one that happens to agree."
 
 # COMMAND ----------
+
+CASES_PATTERN = r"^(\d+)"
 
 estimated_clean = (
     estimated
@@ -53,15 +57,45 @@ estimated_clean = (
         F.trim(F.col("Country")).alias("country"),
         F.col("Year").cast("int").alias("year"),  # numeric already — don't trim() it, trim() stringifies it first
         F.trim(F.col("WHO Region")).alias("who_region"),
-        F.expr("try_cast(`No. of cases_median` as double)").alias("estimated_cases_median"),
+        F.regexp_extract(F.col("`No. of cases`"), CASES_PATTERN, 1).cast("double").alias("estimated_cases"),
+        F.regexp_extract(F.col("`No. of deaths`"), CASES_PATTERN, 1).cast("double").alias("estimated_deaths"),
+        # _min/_max are genuinely separate information (the range bounds), not
+        # duplicated in the base column, so these still come from their own columns.
+        # Where a country had 0 cases, min/max are blank in the source — that's a
+        # real 0, not a missing measurement, so we fill it rather than drop the row.
         F.coalesce(F.expr("try_cast(`No. of cases_min` as double)"), F.lit(0.0)).alias("estimated_cases_min"),
         F.coalesce(F.expr("try_cast(`No. of cases_max` as double)"), F.lit(0.0)).alias("estimated_cases_max"),
-        F.expr("try_cast(`No. of deaths_median` as double)").alias("estimated_deaths_median"),
     )
 )
 
 print(f"estimated_clean: {estimated_clean.count():,} rows")
 estimated_clean.display()
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### Cell 2b — Validate the parse against the file's own pre-split median
+# MAGIC The file already provides `No. of cases_median`, which should equal the number we
+# MAGIC just parsed out of `No. of cases`. If it ever doesn't, our regex assumption about
+# MAGIC the column's format is wrong for at least one row, and that should fail loudly here
+# MAGIC — not silently feed a wrong number into Silver.
+
+# COMMAND ----------
+
+_mismatch_count = (
+    estimated
+    .withColumn("_parsed", F.regexp_extract(F.col("`No. of cases`"), CASES_PATTERN, 1).cast("double"))
+    .withColumn("_median", F.expr("try_cast(`No. of cases_median` as double)"))
+    .filter(F.col("_parsed") != F.col("_median"))
+    .count()
+)
+
+if _mismatch_count > 0:
+    raise ValueError(
+        f"{_mismatch_count} rows where parsed 'No. of cases' disagrees with "
+        f"'No. of cases_median' — the regex assumption about this column's format is wrong."
+    )
+
+print("Validated: parsed 'No. of cases' matches 'No. of cases_median' for every row.")
 
 # COMMAND ----------
 # MAGIC %md ### Cell 3 — Clean `incidence`
@@ -123,7 +157,7 @@ silver_df = (
 print(f"incidence_clean rows:  {incidence_clean.count():,}")
 print(f"after join (should match incidence_clean): {silver_df.count():,}")
 
-missing_estimated = silver_df.filter(F.col("estimated_cases_median").isNull()).count()
+missing_estimated = silver_df.filter(F.col("estimated_cases").isNull()).count()
 missing_reported = silver_df.filter(F.col("reported_cases").isNull()).count()
 print(f"rows missing estimated features: {missing_estimated:,}")
 print(f"rows missing reported features:  {missing_reported:,}")
