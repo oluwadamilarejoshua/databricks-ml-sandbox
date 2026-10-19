@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Bronze — Reported Numbers
 # MAGIC
@@ -63,6 +67,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{BRONZE_SCHEMA}")
 print(f"Wrote {df_bronze.count():,} rows to {TARGET_TABLE}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Sanity check
 
 # COMMAND ----------
