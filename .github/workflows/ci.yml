@@ -34,3 +34,6 @@ jobs:
       - name: Syntax-check every notebook/script
         run: |
           find . -name "*.py" -not -path "./.git/*" -print0 | xargs -0 -n1 python -m py_compile
+
+      - name: Run unit tests
+        run: pytest -v
