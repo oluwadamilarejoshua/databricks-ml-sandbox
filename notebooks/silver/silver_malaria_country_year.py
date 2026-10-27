@@ -211,3 +211,7 @@ print(f"Row count: {check.count():,}")
 print(f"Year range: {check.agg(F.min('year'), F.max('year')).first()}")
 print(f"Distinct countries: {check.select('country').distinct().count()}")
 check.orderBy(F.col("incidence_per_1000").desc()).limit(10).display()
+
+
+# COMMAND ----------
+

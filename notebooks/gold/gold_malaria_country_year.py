@@ -237,3 +237,7 @@ check.select(
     "incidence_per_1000_lag1y", "incidence_per_1000_lag2y",
     "incidence_roll2y_avg", "outbreak_flag",
 ).orderBy("country", "year").limit(15).display()
+
+
+# COMMAND ----------
+
