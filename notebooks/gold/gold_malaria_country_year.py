@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Gold — Malaria Country-Year (Model-Ready)
 # MAGIC
@@ -49,6 +53,7 @@ print(f"Lag years: {LAG_YEARS}")
 print(f"Minimum years of history to keep a country: {MIN_YEARS_HISTORY}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 1 — Read Silver
 
 # COMMAND ----------
@@ -58,6 +63,7 @@ print(f"Silver rows: {silver.count():,}")
 print(f"Distinct countries: {silver.select('country').distinct().count():,}")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 2 — Minimum-history guard
 # MAGIC Drop any country with fewer than `MIN_YEARS_HISTORY` rows entirely, before computing
@@ -89,6 +95,7 @@ silver_filtered = silver.join(kept_countries, on="country", how="inner")
 print(f"Rows after filter: {silver_filtered.count():,} (was {silver.count():,})")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 3 — Lag and rolling features
 # MAGIC Every lag is computed per-country, ordered by year -- `Window.partitionBy("country")`
@@ -97,6 +104,10 @@ print(f"Rows after filter: {silver_filtered.count():,} (was {silver.count():,})"
 # MAGIC genuinely nothing before them to look back on. We leave those nulls in Gold rather
 # MAGIC than drop the rows; the training notebook decides how to handle them, same split of
 # MAGIC responsibility as the real pipeline.
+
+# COMMAND ----------
+
+display(spark.table("dummyhealthdata.silver_data.silver_malaria_country_year").columns)
 
 # COMMAND ----------
 
@@ -126,6 +137,7 @@ for c in gold_df.columns:
         print(f"  {c}")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 4 — Outbreak flag, per-country percentile
 # MAGIC A single global threshold across all 107 countries would just permanently flag
@@ -151,6 +163,7 @@ expected_rate = 1 - OUTBREAK_PERCENTILE
 print(f"outbreak_flag positive rate: {outbreak_rate:.1%} (expected close to {expected_rate:.0%} by construction)")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 5 — Data-quality checks
 
 # COMMAND ----------
@@ -181,6 +194,7 @@ null_fractions = check_null_thresholds(
 check_no_duplicates(gold_df, key_columns=["country", "year"], raise_on_failure=True)
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 6 — Add lineage columns and write
 
 # COMMAND ----------
@@ -203,6 +217,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{GOLD_SCHEMA}")
 print(f"Wrote {gold_final.count():,} rows to {TARGET_TABLE}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 7 — Sanity check
 
 # COMMAND ----------
