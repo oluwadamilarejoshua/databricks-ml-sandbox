@@ -28,6 +28,7 @@ print(f"Catalog: {CATALOG}")
 print(f"Reading from: {CATALOG}.{BRONZE_SCHEMA}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 1 — Read the three Bronze tables
 
 # COMMAND ----------
@@ -41,6 +42,7 @@ print(f"incidence: {incidence.count():,} rows")
 print(f"reported:  {reported.count():,} rows")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 2 — Clean `estimated`
 # MAGIC The raw `No. of cases` / `No. of deaths` columns are compound strings like
@@ -76,6 +78,7 @@ print(f"estimated_clean: {estimated_clean.count():,} rows")
 estimated_clean.display()
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 2b — Validate the parse against the file's own pre-split median
 # MAGIC The file already provides `No. of cases_median`, which should equal the number we
@@ -102,6 +105,7 @@ if _mismatch_count > 0:
 print("Validated: parsed 'No. of cases' matches 'No. of cases_median' for every row.")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 3 — Clean `incidence`
 # MAGIC Despite the column name, `No. of cases` in this file is actually the incidence rate
 # MAGIC per 1,000 population at risk — a continuous number. This becomes our regression target.
@@ -122,6 +126,7 @@ print(f"incidence_clean: {incidence_clean.count():,} rows")
 incidence_clean.display()
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 4 — Clean `reported`
 
 # COMMAND ----------
@@ -141,6 +146,7 @@ print(f"reported_clean: {reported_clean.count():,} rows")
 reported_clean.display()
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cell 5 — Join on (country, year)
 # MAGIC `incidence` is our target table, so it drives the join — every row we can score
@@ -167,6 +173,7 @@ print(f"rows missing estimated features: {missing_estimated:,}")
 print(f"rows missing reported features:  {missing_reported:,}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 6 — Add lineage columns and write
 
 # COMMAND ----------
@@ -194,6 +201,7 @@ target_table = f"{CATALOG}.{SILVER_SCHEMA}.silver_malaria_country_year"
 print(f"Wrote {silver_final.count():,} rows to {target_table}")
 
 # COMMAND ----------
+
 # MAGIC %md ### Cell 7 — Sanity check
 
 # COMMAND ----------
